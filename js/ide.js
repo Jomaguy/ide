@@ -1,7 +1,9 @@
 import { IS_PUTER } from "./puter.js";
 
 const API_KEY = ""; // Get yours at https://platform.sulu.sh/apis/judge0
-const OPENROUTER_API_KEY = "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"; // Get yours at https://openrouter.ai/keys
+const OPENROUTER_API_KEY = "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"; // Get yours at https://openrouter.ai/keys
+
+console.log('OpenRouter API Key loaded:', OPENROUTER_API_KEY);
 
 const AUTH_HEADERS = API_KEY ? {
     "Authorization": `Bearer ${API_KEY}`
@@ -555,6 +557,15 @@ document.addEventListener("DOMContentLoaded", async function () {
     require(["vs/editor/editor.main"], function (ignorable) {
         layout = new GoldenLayout(layoutConfig, $("#judge0-site-content"));
 
+        // Create the floating box element
+        const addToChatBox = document.createElement('div');
+        addToChatBox.className = 'add-to-chat-box';
+        addToChatBox.textContent = 'Add to chat';
+        document.body.appendChild(addToChatBox);
+
+        // Store the currently selected code
+        let currentSelection = '';
+
         layout.registerComponent("source", function (container, state) {
             sourceEditor = monaco.editor.create(container.getElement()[0], {
                 automaticLayout: true,
@@ -564,6 +575,29 @@ document.addEventListener("DOMContentLoaded", async function () {
                 fontFamily: "JetBrains Mono",
                 minimap: {
                     enabled: true
+                }
+            });
+
+            // Add selection change listener
+            sourceEditor.onDidChangeCursorSelection(function(e) {
+                const selection = sourceEditor.getSelection();
+                if (!selection.isEmpty()) {
+                    // Get selected text bounds
+                    const selectedRange = sourceEditor.getModel().getValueInRange(selection);
+                    if (selectedRange.trim()) {
+                        currentSelection = selectedRange;
+                        // Get coordinates for the selection
+                        const selectionCoords = sourceEditor.getScrolledVisiblePosition(selection.getStartPosition());
+                        if (selectionCoords) {
+                            const editorCoords = sourceEditor.getDomNode().getBoundingClientRect();
+                            addToChatBox.style.display = 'block';
+                            addToChatBox.style.left = (editorCoords.left + selectionCoords.left) + 'px';
+                            addToChatBox.style.top = (editorCoords.top + selectionCoords.top - 40) + 'px';
+                        }
+                    }
+                } else {
+                    currentSelection = '';
+                    addToChatBox.style.display = 'none';
                 }
             });
 
@@ -596,6 +630,9 @@ document.addEventListener("DOMContentLoaded", async function () {
             });
         });
 
+        // Store reference to chat input
+        let chatInput;
+
         layout.registerComponent("middle", function(container, state) {
             const chatContainer = document.createElement('div');
             chatContainer.className = 'chat-container';
@@ -606,11 +643,35 @@ document.addEventListener("DOMContentLoaded", async function () {
             const inputContainer = document.createElement('div');
             inputContainer.className = 'chat-input-container';
             
-            const input = document.createElement('input');
-            input.type = 'text';
+            // Replace input with textarea
+            const input = document.createElement('textarea');
             input.className = 'chat-input';
             input.placeholder = 'Type your message...';
+            input.rows = 1;
             
+            // Auto-resize function
+            function autoResize() {
+                input.style.height = 'auto';
+                input.style.height = Math.min(input.scrollHeight, 200) + 'px';
+            }
+
+            // Add input event listener for auto-resize
+            input.addEventListener('input', autoResize);
+            
+            // Store reference to chat input
+            chatInput = input;
+
+            // Add click handler for Add to chat button
+            addToChatBox.addEventListener('click', function() {
+                if (currentSelection && chatInput) {
+                    const existingText = chatInput.value;
+                    const codeBlock = "\`\`\`\n" + currentSelection + "\n\`\`\`\n";
+                    chatInput.value = existingText + (existingText ? "\n" : "") + codeBlock;
+                    autoResize(); // Resize after adding code
+                    addToChatBox.style.display = 'none';
+                }
+            });
+
             const buttonRow = document.createElement('div');
             buttonRow.className = 'button-row';
             
@@ -678,19 +739,26 @@ document.addEventListener("DOMContentLoaded", async function () {
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
                 try {
+                    const headers = {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                        'HTTP-Referer': 'http://localhost:8000',
+                        'X-Title': 'Judge0 IDE'
+                    };
+
                     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                            'HTTP-Referer': window.location.href,
-                            'X-Title': 'Judge0 IDE'
-                        },
+                        headers: headers,
                         body: JSON.stringify({
                             model: selectedModel,
                             messages: [{ role: 'user', content: message }]
                         })
                     });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`API Error: ${errorData.error?.message || 'Unknown error'}`);
+                    }
 
                     const data = await response.json();
                     
@@ -703,19 +771,18 @@ document.addEventListener("DOMContentLoaded", async function () {
                     // Scroll to bottom
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
                 } catch (error) {
-                    console.error('Error:', error);
                     // Show error in chat
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'message ai-message error';
-                    errorDiv.textContent = 'Error: Could not get response from AI';
+                    errorDiv.textContent = `Error: ${error.message}`;
                     messagesContainer.appendChild(errorDiv);
                 }
             }
 
-            // Add event listeners
-            submitButton.addEventListener('click', sendMessage);
+            // Update keypress event listener for Enter handling
             input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault(); // Prevent new line
                     sendMessage();
                 }
             });

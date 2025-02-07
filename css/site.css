@@ -5,3 +5,36 @@ html, body {
     padding: 0;
     overflow: hidden;
 }
+
+.add-to-chat-box {
+    position: absolute;
+    background: #2196f3;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    display: none;
+    z-index: 1000;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.add-to-chat-box:hover {
+    background: #1976d2;
+}
+
+.chat-input {
+    width: 100%;
+    min-height: 40px;
+    max-height: 200px;
+    padding: 8px;
+    margin-bottom: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+    resize: none;
+    overflow-y: auto;
+    box-sizing: border-box;
+    line-height: 1.4;
+}
