@@ -1,6 +1,7 @@
 import { IS_PUTER } from "./puter.js";
 
 const API_KEY = ""; // Get yours at https://platform.sulu.sh/apis/judge0
+const OPENROUTER_API_KEY = "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"; // Get yours at https://openrouter.ai/keys
 
 const AUTH_HEADERS = API_KEY ? {
     "Authorization": `Bearer ${API_KEY}`
@@ -34,6 +35,7 @@ var layout;
 var sourceEditor;
 var stdinEditor;
 var stdoutEditor;
+var middleEditor;
 
 var $selectLanguage;
 var $compilerOptions;
@@ -55,7 +57,7 @@ var layoutConfig = {
         type: "row",
         content: [{
             type: "component",
-            width: 66,
+            width: 45,
             componentName: "source",
             id: "source",
             title: "Source Code",
@@ -64,7 +66,18 @@ var layoutConfig = {
                 readOnly: false
             }
         }, {
+            type: "component",
+            width: 25,
+            componentName: "middle",
+            id: "middle",
+            title: "Chat",
+            isClosable: false,
+            componentState: {
+                readOnly: false
+            }
+        }, {
             type: "column",
+            width: 30,
             content: [{
                 type: "component",
                 componentName: "stdin",
@@ -579,6 +592,131 @@ document.addEventListener("DOMContentLoaded", async function () {
                 fontFamily: "JetBrains Mono",
                 minimap: {
                     enabled: false
+                }
+            });
+        });
+
+        layout.registerComponent("middle", function(container, state) {
+            const chatContainer = document.createElement('div');
+            chatContainer.className = 'chat-container';
+            
+            const messagesContainer = document.createElement('div');
+            messagesContainer.className = 'chat-messages';
+            
+            const inputContainer = document.createElement('div');
+            inputContainer.className = 'chat-input-container';
+            
+            const input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'chat-input';
+            input.placeholder = 'Type your message...';
+            
+            const buttonRow = document.createElement('div');
+            buttonRow.className = 'button-row';
+            
+            const submitButton = document.createElement('button');
+            submitButton.className = 'chat-submit';
+            submitButton.textContent = 'Submit';
+
+            const modelSelect = document.createElement('select');
+            modelSelect.className = 'model-select';
+            
+            const models = [
+                { 
+                    id: 'google/gemini-2.0-flash-lite-preview-02-05:free',
+                    name: 'Gemini'
+                },
+                {
+                    id: 'qwen/qwen2.5-vl-72b-instruct:free',
+                    name: 'Qwen'
+                }
+            ];
+
+            models.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = model.name;
+                modelSelect.appendChild(option);
+            });
+            
+            buttonRow.appendChild(modelSelect);
+            buttonRow.appendChild(submitButton);
+            
+            inputContainer.appendChild(input);
+            inputContainer.appendChild(buttonRow);
+            
+            chatContainer.appendChild(messagesContainer);
+            chatContainer.appendChild(inputContainer);
+            
+            container.getElement()[0].appendChild(chatContainer);
+
+            async function sendMessage() {
+                const message = input.value.trim();
+                if (!message) return;
+
+                if (!OPENROUTER_API_KEY) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'message ai-message error';
+                    errorDiv.textContent = 'Error: Please add your OpenRouter API key in ide.js';
+                    messagesContainer.appendChild(errorDiv);
+                    return;
+                }
+
+                const selectedModel = modelSelect.value;
+                const modelName = models.find(m => m.id === selectedModel).name;
+
+                // Add user message to chat
+                const userMessageDiv = document.createElement('div');
+                userMessageDiv.className = 'message user-message';
+                userMessageDiv.textContent = `User: ${message}`;
+                messagesContainer.appendChild(userMessageDiv);
+
+                // Clear input
+                input.value = '';
+
+                // Scroll to bottom
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                try {
+                    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+                            'HTTP-Referer': window.location.href,
+                            'X-Title': 'Judge0 IDE'
+                        },
+                        body: JSON.stringify({
+                            model: selectedModel,
+                            messages: [{ role: 'user', content: message }]
+                        })
+                    });
+
+                    const data = await response.json();
+                    
+                    // Add AI response to chat
+                    const aiMessageDiv = document.createElement('div');
+                    aiMessageDiv.className = 'message ai-message';
+                    aiMessageDiv.textContent = `${modelName}: ${data.choices[0].message.content}`;
+                    messagesContainer.appendChild(aiMessageDiv);
+
+                    // Scroll to bottom
+                    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+                } catch (error) {
+                    console.error('Error:', error);
+                    // Show error in chat
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'message ai-message error';
+                    errorDiv.textContent = 'Error: Could not get response from AI';
+                    messagesContainer.appendChild(errorDiv);
+                }
+            }
+
+            // Add event listeners
+            submitButton.addEventListener('click', sendMessage);
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    sendMessage();
                 }
             });
         });
