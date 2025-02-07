@@ -1,7 +1,7 @@
 import { IS_PUTER } from "./puter.js";
 
 const API_KEY = ""; // Get yours at https://platform.sulu.sh/apis/judge0
-const OPENROUTER_API_KEY = "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"; // Get yours at https://openrouter.ai/keys
+const OPENROUTER_API_KEY = "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"; // Get yours at https://openrouter.ai/keys
 
 console.log('OpenRouter API Key loaded:', OPENROUTER_API_KEY);
 
@@ -148,6 +148,51 @@ function handleRunError(jqXHR) {
     })), "*");
 }
 
+function createAskChatButton(errorMessage) {
+    // Remove any existing ask chat button
+    const existingButton = document.querySelector('.ask-chat-button');
+    if (existingButton) {
+        existingButton.remove();
+    }
+
+    const button = document.createElement('button');
+    button.className = 'ask-chat-button';
+    button.textContent = 'Ask Chat?';
+    button.onclick = () => {
+        // Get the chat input
+        const chatInput = document.querySelector('.chat-input');
+        if (chatInput) {
+            // Switch to the chat panel
+            let chatPanel = layout.root.getItemsById("middle")[0];
+            chatPanel.parent.header.parent.setActiveContentItem(chatPanel);
+            
+            // Format the error message for the chat
+            const formattedMessage = `I got the following error in my code:\n\`\`\`\n${errorMessage}\n\`\`\`\nCan you help me fix this?`;
+            
+            // Set the chat input value
+            chatInput.value = formattedMessage;
+            
+            // Trigger the auto-resize if it exists
+            const event = new Event('input');
+            chatInput.dispatchEvent(event);
+            
+            // Focus the input
+            chatInput.focus();
+        }
+    };
+
+    // Add the button to the stdout container
+    const stdoutContainer = stdoutEditor.getContainerDomNode();
+    stdoutContainer.style.position = 'relative';
+    stdoutContainer.appendChild(button);
+    
+    // Show the button with a fade-in effect
+    setTimeout(() => {
+        button.style.display = 'block';
+        button.style.opacity = '1';
+    }, 100);
+}
+
 function handleResult(data) {
     const tat = Math.round(performance.now() - timeStart);
     console.log(`It took ${tat}ms to get submission result.`);
@@ -163,6 +208,17 @@ function handleResult(data) {
     const output = [compileOutput, stdout].join("\n").trim();
 
     stdoutEditor.setValue(output);
+
+    // Check if there's an error in the output
+    if (compileOutput || (status && status.id !== 3)) {  // 3 is typically the "Accepted" status
+        createAskChatButton(output);
+    } else {
+        // Remove the ask chat button if it exists
+        const button = document.querySelector('.ask-chat-button');
+        if (button) {
+            button.remove();
+        }
+    }
 
     $runBtn.removeClass("disabled");
 
@@ -354,22 +410,21 @@ function setFontSizeForAllEditors(fontSize) {
 async function loadLangauges() {
     return new Promise((resolve, reject) => {
         let options = [];
+        const allowedLanguages = {
+            'CE': [105, 91],      // C++ (GCC 14.1.0), Java (JDK 17.0.6)
+            'EXTRA_CE': [25]      // Python for ML (3.11.2)
+        };
 
         $.ajax({
             url: UNAUTHENTICATED_CE_BASE_URL + "/languages",
             success: function (data) {
                 for (let i = 0; i < data.length; i++) {
                     let language = data[i];
-                    let option = new Option(language.name, language.id);
-                    option.setAttribute("flavor", CE);
-                    option.setAttribute("langauge_mode", getEditorLanguageMode(language.name));
-
-                    if (language.id !== 89) {
+                    if (allowedLanguages['CE'] && allowedLanguages['CE'].includes(language.id)) {
+                        let option = new Option(language.name, language.id);
+                        option.setAttribute("flavor", CE);
+                        option.setAttribute("langauge_mode", getEditorLanguageMode(language.name));
                         options.push(option);
-                    }
-
-                    if (language.id === DEFAULT_LANGUAGE_ID) {
-                        option.selected = true;
                     }
                 }
             },
@@ -380,11 +435,10 @@ async function loadLangauges() {
                 success: function (data) {
                     for (let i = 0; i < data.length; i++) {
                         let language = data[i];
-                        let option = new Option(language.name, language.id);
-                        option.setAttribute("flavor", EXTRA_CE);
-                        option.setAttribute("langauge_mode", getEditorLanguageMode(language.name));
-
-                        if (options.findIndex((t) => (t.text === option.text)) === -1 && language.id !== 89) {
+                        if (allowedLanguages['EXTRA_CE'] && allowedLanguages['EXTRA_CE'].includes(language.id)) {
+                            let option = new Option(language.name, language.id);
+                            option.setAttribute("flavor", EXTRA_CE);
+                            option.setAttribute("langauge_mode", getEditorLanguageMode(language.name));
                             options.push(option);
                         }
                     }
@@ -397,7 +451,7 @@ async function loadLangauges() {
             });
         });
     });
-};
+}
 
 async function loadSelectedLanguage(skipSetDefaultSourceCodeName = false) {
     monaco.editor.setModelLanguage(sourceEditor.getModel(), $selectLanguage.find(":selected").attr("langauge_mode"));
@@ -557,15 +611,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     require(["vs/editor/editor.main"], function (ignorable) {
         layout = new GoldenLayout(layoutConfig, $("#judge0-site-content"));
 
-        // Create the floating box element
-        const addToChatBox = document.createElement('div');
-        addToChatBox.className = 'add-to-chat-box';
-        addToChatBox.textContent = 'Add to chat';
-        document.body.appendChild(addToChatBox);
-
-        // Store the currently selected code
-        let currentSelection = '';
-
         layout.registerComponent("source", function (container, state) {
             sourceEditor = monaco.editor.create(container.getElement()[0], {
                 automaticLayout: true,
@@ -578,30 +623,12 @@ document.addEventListener("DOMContentLoaded", async function () {
                 }
             });
 
-            // Add selection change listener
-            sourceEditor.onDidChangeCursorSelection(function(e) {
-                const selection = sourceEditor.getSelection();
-                if (!selection.isEmpty()) {
-                    // Get selected text bounds
-                    const selectedRange = sourceEditor.getModel().getValueInRange(selection);
-                    if (selectedRange.trim()) {
-                        currentSelection = selectedRange;
-                        // Get coordinates for the selection
-                        const selectionCoords = sourceEditor.getScrolledVisiblePosition(selection.getStartPosition());
-                        if (selectionCoords) {
-                            const editorCoords = sourceEditor.getDomNode().getBoundingClientRect();
-                            addToChatBox.style.display = 'block';
-                            addToChatBox.style.left = (editorCoords.left + selectionCoords.left) + 'px';
-                            addToChatBox.style.top = (editorCoords.top + selectionCoords.top - 40) + 'px';
-                        }
-                    }
-                } else {
-                    currentSelection = '';
-                    addToChatBox.style.display = 'none';
+            // Handle cleanup
+            container.on('destroy', () => {
+                if (sourceEditor) {
+                    sourceEditor.dispose();
                 }
             });
-
-            sourceEditor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, run);
         });
 
         layout.registerComponent("stdin", function (container, state) {
@@ -648,6 +675,14 @@ document.addEventListener("DOMContentLoaded", async function () {
             input.className = 'chat-input';
             input.placeholder = 'Type your message...';
             input.rows = 1;
+
+            // Add conversation history tracking
+            let conversationHistory = [
+                {
+                    role: 'system',
+                    content: 'You are a programming tutor who uses the Socratic method. Keep your responses concise and focused. Instead of giving direct answers, guide users through problems with targeted questions. Limit explanations to 2-3 sentences when possible. When reviewing code, ask specific questions about potential issues or improvements. Your goal is to help users discover solutions through self-reflection and critical thinking.'
+                }
+            ];
             
             // Auto-resize function
             function autoResize() {
@@ -732,6 +767,9 @@ document.addEventListener("DOMContentLoaded", async function () {
                 userMessageDiv.textContent = `User: ${message}`;
                 messagesContainer.appendChild(userMessageDiv);
 
+                // Add user message to conversation history
+                conversationHistory.push({ role: 'user', content: message });
+
                 // Clear input
                 input.value = '';
 
@@ -751,7 +789,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                         headers: headers,
                         body: JSON.stringify({
                             model: selectedModel,
-                            messages: [{ role: 'user', content: message }]
+                            messages: conversationHistory
                         })
                     });
 
@@ -761,15 +799,27 @@ document.addEventListener("DOMContentLoaded", async function () {
                     }
 
                     const data = await response.json();
+                    const aiResponse = data.choices[0].message.content;
+                    
+                    // Add AI response to conversation history
+                    conversationHistory.push({ role: 'assistant', content: aiResponse });
                     
                     // Add AI response to chat
                     const aiMessageDiv = document.createElement('div');
                     aiMessageDiv.className = 'message ai-message';
-                    aiMessageDiv.textContent = `${modelName}: ${data.choices[0].message.content}`;
+                    aiMessageDiv.textContent = `${modelName}: ${aiResponse}`;
                     messagesContainer.appendChild(aiMessageDiv);
 
                     // Scroll to bottom
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+                    // Limit conversation history to last 10 messages to prevent token limit issues
+                    if (conversationHistory.length > 11) { // 1 system message + 10 conversation messages
+                        conversationHistory = [
+                            conversationHistory[0], // Keep system message
+                            ...conversationHistory.slice(-10) // Keep last 10 messages
+                        ];
+                    }
                 } catch (error) {
                     // Show error in chat
                     const errorDiv = document.createElement('div');
@@ -987,7 +1037,7 @@ const DEFAULT_STDIN = "\
 
 const DEFAULT_COMPILER_OPTIONS = "";
 const DEFAULT_CMD_ARGUMENTS = "";
-const DEFAULT_LANGUAGE_ID = 105; // C++ (GCC 14.1.0) (https://ce.judge0.com/languages/105)
+const DEFAULT_LANGUAGE_ID = 105; // C++ (GCC 14.1.0)
 
 function getEditorLanguageMode(languageName) {
     const DEFAULT_EDITOR_LANGUAGE_MODE = "plaintext";
@@ -1025,27 +1075,12 @@ function getEditorLanguageMode(languageName) {
 }
 
 const EXTENSIONS_TABLE = {
-    "asm": { "flavor": CE, "language_id": 45 }, // Assembly (NASM 2.14.02)
-    "c": { "flavor": CE, "language_id": 103 }, // C (GCC 14.1.0)
     "cpp": { "flavor": CE, "language_id": 105 }, // C++ (GCC 14.1.0)
-    "cs": { "flavor": EXTRA_CE, "language_id": 29 }, // C# (.NET Core SDK 7.0.400)
-    "go": { "flavor": CE, "language_id": 95 }, // Go (1.18.5)
     "java": { "flavor": CE, "language_id": 91 }, // Java (JDK 17.0.6)
-    "js": { "flavor": CE, "language_id": 102 }, // JavaScript (Node.js 22.08.0)
-    "lua": { "flavor": CE, "language_id": 64 }, // Lua (5.3.5)
-    "pas": { "flavor": CE, "language_id": 67 }, // Pascal (FPC 3.0.4)
-    "php": { "flavor": CE, "language_id": 98 }, // PHP (8.3.11)
     "py": { "flavor": EXTRA_CE, "language_id": 25 }, // Python for ML (3.11.2)
-    "r": { "flavor": CE, "language_id": 99 }, // R (4.4.1)
-    "rb": { "flavor": CE, "language_id": 72 }, // Ruby (2.7.0)
-    "rs": { "flavor": CE, "language_id": 73 }, // Rust (1.40.0)
-    "scala": { "flavor": CE, "language_id": 81 }, // Scala (2.13.2)
-    "sh": { "flavor": CE, "language_id": 46 }, // Bash (5.0.0)
-    "swift": { "flavor": CE, "language_id": 83 }, // Swift (5.2.3)
-    "ts": { "flavor": CE, "language_id": 101 }, // TypeScript (5.6.2)
-    "txt": { "flavor": CE, "language_id": 43 }, // Plain Text
+    "txt": { "flavor": CE, "language_id": 43 } // Plain Text
 };
 
 function getLanguageForExtension(extension) {
-    return EXTENSIONS_TABLE[extension] || { "flavor": CE, "language_id": 43 }; // Plain Text (https://ce.judge0.com/languages/43)
+    return EXTENSIONS_TABLE[extension] || { "flavor": CE, "language_id": 43 }; // Plain Text
 }

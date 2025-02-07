@@ -23,6 +23,26 @@ html, body {
     background: #1976d2;
 }
 
+.ask-chat-button {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    background: #ff4081;
+    color: white;
+    padding: 8px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    display: none;
+    z-index: 1000;
+    border: none;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.ask-chat-button:hover {
+    background: #e91e63;
+}
+
 .chat-input {
     width: 100%;
     min-height: 40px;
