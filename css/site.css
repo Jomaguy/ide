@@ -17,10 +17,17 @@ html, body {
     display: none;
     z-index: 1000;
     box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    font-family: "JetBrains Mono", monospace;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    pointer-events: auto;
+    user-select: none;
 }
 
 .add-to-chat-box:hover {
     background: #1976d2;
+    transform: translateY(-1px);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.3);
 }
 
 .ask-chat-button {

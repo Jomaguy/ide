@@ -1,7 +1,7 @@
 import { IS_PUTER } from "./puter.js";
 
 const API_KEY = ""; // Get yours at https://platform.sulu.sh/apis/judge0
-const OPENROUTER_API_KEY = "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"; // Get yours at https://openrouter.ai/keys
+const OPENROUTER_API_KEY = "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"; // Get yours at https://openrouter.ai/keys
 
 console.log('OpenRouter API Key loaded:', OPENROUTER_API_KEY);
 
@@ -40,8 +40,6 @@ var stdoutEditor;
 var middleEditor;
 
 var $selectLanguage;
-var $compilerOptions;
-var $commandLineArguments;
 var $runBtn;
 var $statusLine;
 
@@ -103,7 +101,8 @@ var layoutConfig = {
     }]
 };
 
-var gPuterFile;
+var gPuterFile = null;
+var currentSelection = '';
 
 function encode(str) {
     return btoa(unescape(encodeURIComponent(str || "")));
@@ -260,9 +259,6 @@ function run() {
     let sourceValue = encode(sourceEditor.getValue());
     let stdinValue = encode(stdinEditor.getValue());
     let languageId = getSelectedLanguageId();
-    let compilerOptions = $compilerOptions.val();
-    let commandLineArguments = $commandLineArguments.val();
-
     let flavor = getSelectedLanguageFlavor();
 
     if (languageId === 44) {
@@ -273,8 +269,6 @@ function run() {
         source_code: sourceValue,
         language_id: languageId,
         stdin: stdinValue,
-        compiler_options: compilerOptions,
-        command_line_arguments: commandLineArguments,
         redirect_stderr_to_stdout: true
     };
 
@@ -284,9 +278,7 @@ function run() {
             source_code: sourceEditor.getValue(),
             language_id: languageId,
             flavor: flavor,
-            stdin: stdinEditor.getValue(),
-            compiler_options: compilerOptions,
-            command_line_arguments: commandLineArguments
+            stdin: stdinEditor.getValue()
         })), "*");
 
         timeStart = performance.now();
@@ -354,51 +346,27 @@ function fetchSubmission(flavor, region, submission_token, iteration) {
 }
 
 function setSourceCodeName(name) {
-    $(".lm_title")[0].innerText = name;
+    // Disabled file naming functionality
 }
 
 function getSourceCodeName() {
-    return $(".lm_title")[0].innerText;
+    return "untitled";
 }
 
 function openFile(content, filename) {
-    clear();
-    sourceEditor.setValue(content);
-    selectLanguageForExtension(filename.split(".").pop());
-    setSourceCodeName(filename);
+    // Disabled
 }
 
 function saveFile(content, filename) {
-    const blob = new Blob([content], { type: "text/plain" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = filename;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
+    // Disabled
 }
 
-async function openAction() {
-    if (IS_PUTER) {
-        gPuterFile = await puter.ui.showOpenFilePicker();
-        openFile(await (await gPuterFile.read()).text(), gPuterFile.name);
-    } else {
-        document.getElementById("open-file-input").click();
-    }
+function openAction() {
+    // Disabled
 }
 
-async function saveAction() {
-    if (IS_PUTER) {
-        if (gPuterFile) {
-            gPuterFile.write(sourceEditor.getValue());
-        } else {
-            gPuterFile = await puter.ui.showSaveFilePicker(sourceEditor.getValue(), getSourceCodeName());
-            setSourceCodeName(gPuterFile.name);
-        }
-    } else {
-        saveFile(sourceEditor.getValue(), getSourceCodeName());
-    }
+function saveAction() {
+    // Disabled
 }
 
 function setFontSizeForAllEditors(fontSize) {
@@ -500,20 +468,13 @@ function setDefaults() {
     setFontSizeForAllEditors(fontSize);
     sourceEditor.setValue(DEFAULT_SOURCE);
     stdinEditor.setValue(DEFAULT_STDIN);
-    $compilerOptions.val(DEFAULT_COMPILER_OPTIONS);
-    $commandLineArguments.val(DEFAULT_CMD_ARGUMENTS);
-
     $statusLine.html("");
-
     loadSelectedLanguage();
 }
 
 function clear() {
     sourceEditor.setValue("");
     stdinEditor.setValue("");
-    $compilerOptions.val("");
-    $commandLineArguments.val("");
-
     $statusLine.html("");
 }
 
@@ -543,33 +504,13 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     $selectLanguage = $("#select-language");
     $selectLanguage.change(function (event, data) {
-        let skipSetDefaultSourceCodeName = (data && data.skipSetDefaultSourceCodeName) || !!gPuterFile;
-        loadSelectedLanguage(skipSetDefaultSourceCodeName);
+        loadSelectedLanguage(true);
     });
 
     await loadLangauges();
 
-    $compilerOptions = $("#compiler-options");
-    $commandLineArguments = $("#command-line-arguments");
-
     $runBtn = $("#run-btn");
     $runBtn.click(run);
-
-    $("#open-file-input").change(function (e) {
-        const selectedFile = e.target.files[0];
-        if (selectedFile) {
-            const reader = new FileReader();
-            reader.onload = function (e) {
-                openFile(e.target.result, selectedFile.name);
-            };
-
-            reader.onerror = function (e) {
-                showError("Error", "Error reading file: " + e.target.error);
-            };
-
-            reader.readAsText(selectedFile);
-        }
-    });
 
     $statusLine = $("#judge0-status-line");
 
@@ -579,14 +520,6 @@ document.addEventListener("DOMContentLoaded", async function () {
                 case "Enter": // Ctrl+Enter, Cmd+Enter
                     e.preventDefault();
                     run();
-                    break;
-                case "s": // Ctrl+S, Cmd+S
-                    e.preventDefault();
-                    save();
-                    break;
-                case "o": // Ctrl+O, Cmd+O
-                    e.preventDefault();
-                    open();
                     break;
                 case "+": // Ctrl+Plus
                 case "=": // Some layouts use '=' for '+'
@@ -608,7 +541,16 @@ document.addEventListener("DOMContentLoaded", async function () {
         }
     });
 
-    require(["vs/editor/editor.main"], function (ignorable) {
+    let superKey = "⌘";
+    if (!/(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
+        superKey = "Ctrl";
+    }
+
+    [$runBtn].forEach(btn => {
+        btn.attr("data-content", `${superKey}${btn.attr("data-content")}`);
+    });
+
+    require(["vs/editor/editor.main"], function () {
         layout = new GoldenLayout(layoutConfig, $("#judge0-site-content"));
 
         layout.registerComponent("source", function (container, state) {
@@ -623,10 +565,64 @@ document.addEventListener("DOMContentLoaded", async function () {
                 }
             });
 
-            // Handle cleanup
-            container.on('destroy', () => {
-                if (sourceEditor) {
-                    sourceEditor.dispose();
+            // Create and add the "Add to Chat" button
+            const addToChatBox = document.createElement('div');
+            addToChatBox.className = 'add-to-chat-box';
+            addToChatBox.textContent = 'Add to Chat';
+            container.getElement()[0].appendChild(addToChatBox);
+
+            // Add selection change handler
+            sourceEditor.onDidChangeCursorSelection((e) => {
+                const selection = sourceEditor.getSelection();
+                if (selection) {
+                    const selectedText = sourceEditor.getModel().getValueInRange(selection);
+                    if (selectedText && selectedText.trim()) {
+                        currentSelection = selectedText;
+                        addToChatBox.style.display = 'block';
+                        
+                        // Get the selection coordinates
+                        const startPos = sourceEditor.getScrolledVisiblePosition(selection.getStartPosition());
+                        
+                        if (startPos) {
+                            const editorPos = container.getElement()[0].getBoundingClientRect();
+                            const left = startPos.left + editorPos.left;
+                            const top = startPos.top + editorPos.top - 30; // Position above the selection
+                            
+                            addToChatBox.style.left = `${left}px`;
+                            addToChatBox.style.top = `${top}px`;
+                        }
+                    } else {
+                        currentSelection = '';
+                        addToChatBox.style.display = 'none';
+                    }
+                }
+            });
+
+            // Add click handler for Add to Chat button
+            addToChatBox.addEventListener('click', function() {
+                if (currentSelection) {
+                    const chatInput = document.querySelector('.chat-input');
+                    if (chatInput) {
+                        const existingText = chatInput.value;
+                        const codeBlock = "\`\`\`\n" + currentSelection + "\n\`\`\`\n";
+                        chatInput.value = existingText + (existingText ? "\n" : "") + codeBlock;
+                        
+                        // Trigger the auto-resize
+                        const event = new Event('input');
+                        chatInput.dispatchEvent(event);
+                        
+                        // Switch to chat panel
+                        let chatPanel = layout.root.getItemsById("middle")[0];
+                        if (chatPanel) {
+                            chatPanel.parent.header.parent.setActiveContentItem(chatPanel);
+                        }
+                        
+                        // Focus the input
+                        chatInput.focus();
+                        
+                        // Hide the add to chat box
+                        addToChatBox.style.display = 'none';
+                    }
                 }
             });
         });
@@ -657,9 +653,6 @@ document.addEventListener("DOMContentLoaded", async function () {
             });
         });
 
-        // Store reference to chat input
-        let chatInput;
-
         layout.registerComponent("middle", function(container, state) {
             const chatContainer = document.createElement('div');
             chatContainer.className = 'chat-container';
@@ -670,20 +663,11 @@ document.addEventListener("DOMContentLoaded", async function () {
             const inputContainer = document.createElement('div');
             inputContainer.className = 'chat-input-container';
             
-            // Replace input with textarea
             const input = document.createElement('textarea');
             input.className = 'chat-input';
             input.placeholder = 'Type your message...';
             input.rows = 1;
 
-            // Add conversation history tracking
-            let conversationHistory = [
-                {
-                    role: 'system',
-                    content: 'You are a programming tutor who uses the Socratic method. Keep your responses concise and focused. Instead of giving direct answers, guide users through problems with targeted questions. Limit explanations to 2-3 sentences when possible. When reviewing code, ask specific questions about potential issues or improvements. Your goal is to help users discover solutions through self-reflection and critical thinking.'
-                }
-            ];
-            
             // Auto-resize function
             function autoResize() {
                 input.style.height = 'auto';
@@ -693,20 +677,6 @@ document.addEventListener("DOMContentLoaded", async function () {
             // Add input event listener for auto-resize
             input.addEventListener('input', autoResize);
             
-            // Store reference to chat input
-            chatInput = input;
-
-            // Add click handler for Add to chat button
-            addToChatBox.addEventListener('click', function() {
-                if (currentSelection && chatInput) {
-                    const existingText = chatInput.value;
-                    const codeBlock = "\`\`\`\n" + currentSelection + "\n\`\`\`\n";
-                    chatInput.value = existingText + (existingText ? "\n" : "") + codeBlock;
-                    autoResize(); // Resize after adding code
-                    addToChatBox.style.display = 'none';
-                }
-            });
-
             const buttonRow = document.createElement('div');
             buttonRow.className = 'button-row';
             
@@ -746,6 +716,14 @@ document.addEventListener("DOMContentLoaded", async function () {
             
             container.getElement()[0].appendChild(chatContainer);
 
+            // Add conversation history tracking
+            let conversationHistory = [
+                {
+                    role: 'system',
+                    content: 'You are a programming tutor who uses the Socratic method. Keep your responses concise and focused. Instead of giving direct answers, guide users through problems with targeted questions. Limit explanations to 2-3 sentences when possible. When reviewing code, ask specific questions about potential issues or improvements. Your goal is to help users discover solutions through self-reflection and critical thinking.'
+                }
+            ];
+
             async function sendMessage() {
                 const message = input.value.trim();
                 if (!message) return;
@@ -772,6 +750,7 @@ document.addEventListener("DOMContentLoaded", async function () {
 
                 // Clear input
                 input.value = '';
+                autoResize();
 
                 // Scroll to bottom
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
@@ -780,7 +759,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                     const headers = {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                        'HTTP-Referer': 'http://localhost:8000',
+                        'HTTP-Referer': window.location.origin,
                         'X-Title': 'Judge0 IDE'
                     };
 
@@ -794,8 +773,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                     });
 
                     if (!response.ok) {
-                        const errorData = await response.json();
-                        throw new Error(`API Error: ${errorData.error?.message || 'Unknown error'}`);
+                        throw new Error(`API Error: ${response.statusText}`);
                     }
 
                     const data = await response.json();
@@ -813,15 +791,14 @@ document.addEventListener("DOMContentLoaded", async function () {
                     // Scroll to bottom
                     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
-                    // Limit conversation history to last 10 messages to prevent token limit issues
-                    if (conversationHistory.length > 11) { // 1 system message + 10 conversation messages
+                    // Limit conversation history
+                    if (conversationHistory.length > 11) {
                         conversationHistory = [
-                            conversationHistory[0], // Keep system message
-                            ...conversationHistory.slice(-10) // Keep last 10 messages
+                            conversationHistory[0],
+                            ...conversationHistory.slice(-10)
                         ];
                     }
                 } catch (error) {
-                    // Show error in chat
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'message ai-message error';
                     errorDiv.textContent = `Error: ${error.message}`;
@@ -829,10 +806,10 @@ document.addEventListener("DOMContentLoaded", async function () {
                 }
             }
 
-            // Update keypress event listener for Enter handling
+            submitButton.addEventListener('click', sendMessage);
             input.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault(); // Prevent new line
+                    e.preventDefault();
                     sendMessage();
                 }
             });
@@ -847,196 +824,16 @@ document.addEventListener("DOMContentLoaded", async function () {
         layout.init();
     });
 
-    let superKey = "⌘";
-    if (!/(Mac|iPhone|iPod|iPad)/i.test(navigator.platform)) {
-        superKey = "Ctrl";
-    }
-
-    [$runBtn].forEach(btn => {
-        btn.attr("data-content", `${superKey}${btn.attr("data-content")}`);
-    });
-
-    document.querySelectorAll(".description").forEach(e => {
-        e.innerText = `${superKey}${e.innerText}`;
-    });
-
+    // Remove file-related event listeners
     if (IS_PUTER) {
         puter.ui.onLaunchedWithItems(async function (items) {
-            gPuterFile = items[0];
-            openFile(await (await gPuterFile.read()).text(), gPuterFile.name);
+            // Disabled
         });
     }
-
-    document.getElementById("judge0-open-file-btn").addEventListener("click", openAction);
-    document.getElementById("judge0-save-btn").addEventListener("click", saveAction);
-
-    window.onmessage = function (e) {
-        if (!e.data) {
-            return;
-        }
-
-        if (e.data.action === "get") {
-            window.top.postMessage(JSON.parse(JSON.stringify({
-                event: "getResponse",
-                source_code: sourceEditor.getValue(),
-                language_id: getSelectedLanguageId(),
-                flavor: getSelectedLanguageFlavor(),
-                stdin: stdinEditor.getValue(),
-                stdout: stdoutEditor.getValue(),
-                compiler_options: $compilerOptions.val(),
-                command_line_arguments: $commandLineArguments.val()
-            })), "*");
-        } else if (e.data.action === "set") {
-            if (e.data.source_code) {
-                sourceEditor.setValue(e.data.source_code);
-            }
-            if (e.data.language_id && e.data.flavor) {
-                selectLanguageByFlavorAndId(e.data.language_id, e.data.flavor);
-            }
-            if (e.data.stdin) {
-                stdinEditor.setValue(e.data.stdin);
-            }
-            if (e.data.stdout) {
-                stdoutEditor.setValue(e.data.stdout);
-            }
-            if (e.data.compiler_options) {
-                $compilerOptions.val(e.data.compiler_options);
-            }
-            if (e.data.command_line_arguments) {
-                $commandLineArguments.val(e.data.command_line_arguments);
-            }
-            if (e.data.api_key) {
-                AUTH_HEADERS["Authorization"] = `Bearer ${e.data.api_key}`;
-            }
-        }
-    };
 });
 
-const DEFAULT_SOURCE = "\
-#include <algorithm>\n\
-#include <cstdint>\n\
-#include <iostream>\n\
-#include <limits>\n\
-#include <set>\n\
-#include <utility>\n\
-#include <vector>\n\
-\n\
-using Vertex    = std::uint16_t;\n\
-using Cost      = std::uint16_t;\n\
-using Edge      = std::pair< Vertex, Cost >;\n\
-using Graph     = std::vector< std::vector< Edge > >;\n\
-using CostTable = std::vector< std::uint64_t >;\n\
-\n\
-constexpr auto kInfiniteCost{ std::numeric_limits< CostTable::value_type >::max() };\n\
-\n\
-auto dijkstra( Vertex const start, Vertex const end, Graph const & graph, CostTable & costTable )\n\
-{\n\
-    std::fill( costTable.begin(), costTable.end(), kInfiniteCost );\n\
-    costTable[ start ] = 0;\n\
-\n\
-    std::set< std::pair< CostTable::value_type, Vertex > > minHeap;\n\
-    minHeap.emplace( 0, start );\n\
-\n\
-    while ( !minHeap.empty() )\n\
-    {\n\
-        auto const vertexCost{ minHeap.begin()->first  };\n\
-        auto const vertex    { minHeap.begin()->second };\n\
-\n\
-        minHeap.erase( minHeap.begin() );\n\
-\n\
-        if ( vertex == end )\n\
-        {\n\
-            break;\n\
-        }\n\
-\n\
-        for ( auto const & neighbourEdge : graph[ vertex ] )\n\
-        {\n\
-            auto const & neighbour{ neighbourEdge.first };\n\
-            auto const & cost{ neighbourEdge.second };\n\
-\n\
-            if ( costTable[ neighbour ] > vertexCost + cost )\n\
-            {\n\
-                minHeap.erase( { costTable[ neighbour ], neighbour } );\n\
-                costTable[ neighbour ] = vertexCost + cost;\n\
-                minHeap.emplace( costTable[ neighbour ], neighbour );\n\
-            }\n\
-        }\n\
-    }\n\
-\n\
-    return costTable[ end ];\n\
-}\n\
-\n\
-int main()\n\
-{\n\
-    constexpr std::uint16_t maxVertices{ 10000 };\n\
-\n\
-    Graph     graph    ( maxVertices );\n\
-    CostTable costTable( maxVertices );\n\
-\n\
-    std::uint16_t testCases;\n\
-    std::cin >> testCases;\n\
-\n\
-    while ( testCases-- > 0 )\n\
-    {\n\
-        for ( auto i{ 0 }; i < maxVertices; ++i )\n\
-        {\n\
-            graph[ i ].clear();\n\
-        }\n\
-\n\
-        std::uint16_t numberOfVertices;\n\
-        std::uint16_t numberOfEdges;\n\
-\n\
-        std::cin >> numberOfVertices >> numberOfEdges;\n\
-\n\
-        for ( auto i{ 0 }; i < numberOfEdges; ++i )\n\
-        {\n\
-            Vertex from;\n\
-            Vertex to;\n\
-            Cost   cost;\n\
-\n\
-            std::cin >> from >> to >> cost;\n\
-            graph[ from ].emplace_back( to, cost );\n\
-        }\n\
-\n\
-        Vertex start;\n\
-        Vertex end;\n\
-\n\
-        std::cin >> start >> end;\n\
-\n\
-        auto const result{ dijkstra( start, end, graph, costTable ) };\n\
-\n\
-        if ( result == kInfiniteCost )\n\
-        {\n\
-            std::cout << \"NO\\n\";\n\
-        }\n\
-        else\n\
-        {\n\
-            std::cout << result << '\\n';\n\
-        }\n\
-    }\n\
-\n\
-    return 0;\n\
-}\n\
-";
-
-const DEFAULT_STDIN = "\
-3\n\
-3 2\n\
-1 2 5\n\
-2 3 7\n\
-1 3\n\
-3 3\n\
-1 2 4\n\
-1 3 7\n\
-2 3 1\n\
-1 3\n\
-3 1\n\
-1 2 4\n\
-1 3\n\
-";
-
-const DEFAULT_COMPILER_OPTIONS = "";
-const DEFAULT_CMD_ARGUMENTS = "";
+const DEFAULT_SOURCE = "";
+const DEFAULT_STDIN = "";
 const DEFAULT_LANGUAGE_ID = 105; // C++ (GCC 14.1.0)
 
 function getEditorLanguageMode(languageName) {
