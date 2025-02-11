@@ -1,9 +1,9 @@
 import { IS_PUTER } from "./puter.js";
 
 const API_KEY = ""; // Get yours at https://platform.sulu.sh/apis/judge0
-const OPENROUTER_API_KEY = "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"; // Get yours at https://openrouter.ai/keys
+const GEMINI_API_KEY = "AIzaSyAaS8BakefjrV1T3H3obrkQPJwmFjRpWFs";
 
-console.log('OpenRouter API Key loaded:', OPENROUTER_API_KEY);
+console.log('Gemini API Key loaded');
 
 const AUTH_HEADERS = API_KEY ? {
     "Authorization": `Bearer ${API_KEY}`
@@ -35,9 +35,9 @@ var fontSize = 13;
 var layout;
 
 var sourceEditor;
-var stdinEditor;
 var stdoutEditor;
 var middleEditor;
+var descriptionEditor;
 
 var $selectLanguage;
 var $runBtn;
@@ -56,39 +56,31 @@ var layoutConfig = {
     content: [{
         type: "row",
         content: [{
-            type: "component",
-            width: 45,
-            componentName: "source",
-            id: "source",
-            title: "Source Code",
-            isClosable: false,
-            componentState: {
-                readOnly: false
-            }
-        }, {
-            type: "component",
-            width: 25,
-            componentName: "middle",
-            id: "middle",
-            title: "Chat",
-            isClosable: false,
-            componentState: {
-                readOnly: false
-            }
-        }, {
             type: "column",
-            width: 30,
+            width: 70,
             content: [{
                 type: "component",
-                componentName: "stdin",
-                id: "stdin",
-                title: "Input",
+                height: 30,
+                componentName: "description",
+                id: "description",
+                title: "Problem Description",
+                isClosable: false,
+                componentState: {
+                    readOnly: true
+                }
+            }, {
+                type: "component",
+                height: 40,
+                componentName: "source",
+                id: "source",
+                title: "Source Code",
                 isClosable: false,
                 componentState: {
                     readOnly: false
                 }
             }, {
                 type: "component",
+                height: 30,
                 componentName: "stdout",
                 id: "stdout",
                 title: "Output",
@@ -97,6 +89,16 @@ var layoutConfig = {
                     readOnly: true
                 }
             }]
+        }, {
+            type: "component",
+            width: 30,
+            componentName: "middle",
+            id: "middle",
+            title: "Chat",
+            isClosable: false,
+            componentState: {
+                readOnly: false
+            }
         }]
     }]
 };
@@ -120,16 +122,6 @@ function decode(bytes) {
 function showError(title, content) {
     $("#judge0-site-modal #title").html(title);
     $("#judge0-site-modal .content").html(content);
-
-    let reportTitle = encodeURIComponent(`Error on ${window.location.href}`);
-    let reportBody = encodeURIComponent(
-        `**Error Title**: ${title}\n` +
-        `**Error Timestamp**: \`${new Date()}\`\n` +
-        `**Origin**: ${window.location.href}\n` +
-        `**Description**:\n${content}`
-    );
-
-    $("#report-problem-btn").attr("href", `https://github.com/judge0/ide/issues/new?title=${reportTitle}&body=${reportBody}`);
     $("#judge0-site-modal").modal("show");
 }
 
@@ -192,6 +184,28 @@ function createAskChatButton(errorMessage) {
     }, 100);
 }
 
+// Add solution checking functionality
+function checkSolution(output) {
+    // Convert output to number and trim whitespace
+    const userAnswer = parseInt(output.trim());
+    const expectedAnswer = 233168; // Sum of multiples of 3 or 5 below 1000
+    
+    if (userAnswer === expectedAnswer) {
+        // Show success modal
+        $("#judge0-site-modal #title").html("🎉 Congratulations!");
+        $("#judge0-site-modal .content").html(`
+            <div style="text-align: center; padding: 20px;">
+                <h2>Problem Solved!</h2>
+                <p>You've successfully solved Problem 1: Multiples of 3 or 5</p>
+                <p>Your answer: ${userAnswer}</p>
+            </div>
+        `);
+        $("#judge0-site-modal").modal("show");
+        return true;
+    }
+    return false;
+}
+
 function handleResult(data) {
     const tat = Math.round(performance.now() - timeStart);
     console.log(`It took ${tat}ms to get submission result.`);
@@ -217,6 +231,8 @@ function handleResult(data) {
         if (button) {
             button.remove();
         }
+        // Check if the solution is correct
+        checkSolution(output);
     }
 
     $runBtn.removeClass("disabled");
@@ -257,7 +273,6 @@ function run() {
     x.parent.header.parent.setActiveContentItem(x);
 
     let sourceValue = encode(sourceEditor.getValue());
-    let stdinValue = encode(stdinEditor.getValue());
     let languageId = getSelectedLanguageId();
     let flavor = getSelectedLanguageFlavor();
 
@@ -268,7 +283,7 @@ function run() {
     let data = {
         source_code: sourceValue,
         language_id: languageId,
-        stdin: stdinValue,
+        stdin: "",
         redirect_stderr_to_stdout: true
     };
 
@@ -278,7 +293,7 @@ function run() {
             source_code: sourceEditor.getValue(),
             language_id: languageId,
             flavor: flavor,
-            stdin: stdinEditor.getValue()
+            stdin: ""
         })), "*");
 
         timeStart = performance.now();
@@ -371,8 +386,8 @@ function saveAction() {
 
 function setFontSizeForAllEditors(fontSize) {
     sourceEditor.updateOptions({ fontSize: fontSize });
-    stdinEditor.updateOptions({ fontSize: fontSize });
     stdoutEditor.updateOptions({ fontSize: fontSize });
+    descriptionEditor.updateOptions({ fontSize: fontSize });
 }
 
 async function loadLangauges() {
@@ -467,14 +482,15 @@ async function getLanguage(flavor, languageId) {
 function setDefaults() {
     setFontSizeForAllEditors(fontSize);
     sourceEditor.setValue(DEFAULT_SOURCE);
-    stdinEditor.setValue(DEFAULT_STDIN);
+    stdoutEditor.setValue("");
+    descriptionEditor.setValue(DEFAULT_DESCRIPTION);
     $statusLine.html("");
     loadSelectedLanguage();
 }
 
 function clear() {
     sourceEditor.setValue("");
-    stdinEditor.setValue("");
+    stdoutEditor.setValue("");
     $statusLine.html("");
 }
 
@@ -499,8 +515,6 @@ document.addEventListener("DOMContentLoaded", async function () {
     });
 
     refreshSiteContentHeight();
-
-    console.log("Hey, Judge0 IDE is open-sourced: https://github.com/judge0/ide. Have fun!");
 
     $selectLanguage = $("#select-language");
     $selectLanguage.change(function (event, data) {
@@ -552,6 +566,20 @@ document.addEventListener("DOMContentLoaded", async function () {
 
     require(["vs/editor/editor.main"], function () {
         layout = new GoldenLayout(layoutConfig, $("#judge0-site-content"));
+
+        layout.registerComponent("description", function (container, state) {
+            descriptionEditor = monaco.editor.create(container.getElement()[0], {
+                automaticLayout: true,
+                scrollBeyondLastLine: false,
+                readOnly: state.readOnly,
+                language: "markdown",
+                fontFamily: "JetBrains Mono",
+                minimap: {
+                    enabled: false
+                },
+                wordWrap: "on"
+            });
+        });
 
         layout.registerComponent("source", function (container, state) {
             sourceEditor = monaco.editor.create(container.getElement()[0], {
@@ -627,19 +655,6 @@ document.addEventListener("DOMContentLoaded", async function () {
             });
         });
 
-        layout.registerComponent("stdin", function (container, state) {
-            stdinEditor = monaco.editor.create(container.getElement()[0], {
-                automaticLayout: true,
-                scrollBeyondLastLine: false,
-                readOnly: state.readOnly,
-                language: "plaintext",
-                fontFamily: "JetBrains Mono",
-                minimap: {
-                    enabled: false
-                }
-            });
-        });
-
         layout.registerComponent("stdout", function (container, state) {
             stdoutEditor = monaco.editor.create(container.getElement()[0], {
                 automaticLayout: true,
@@ -683,33 +698,10 @@ document.addEventListener("DOMContentLoaded", async function () {
             const submitButton = document.createElement('button');
             submitButton.className = 'chat-submit';
             submitButton.textContent = 'Submit';
-
-            const modelSelect = document.createElement('select');
-            modelSelect.className = 'model-select';
-            
-            const models = [
-                { 
-                    id: 'google/gemini-2.0-flash-lite-preview-02-05:free',
-                    name: 'Gemini'
-                },
-                {
-                    id: 'qwen/qwen2.5-vl-72b-instruct:free',
-                    name: 'Qwen'
-                }
-            ];
-
-            models.forEach(model => {
-                const option = document.createElement('option');
-                option.value = model.id;
-                option.textContent = model.name;
-                modelSelect.appendChild(option);
-            });
-            
-            buttonRow.appendChild(modelSelect);
-            buttonRow.appendChild(submitButton);
             
             inputContainer.appendChild(input);
             inputContainer.appendChild(buttonRow);
+            buttonRow.appendChild(submitButton);
             
             chatContainer.appendChild(messagesContainer);
             chatContainer.appendChild(inputContainer);
@@ -728,16 +720,13 @@ document.addEventListener("DOMContentLoaded", async function () {
                 const message = input.value.trim();
                 if (!message) return;
 
-                if (!OPENROUTER_API_KEY) {
+                if (!GEMINI_API_KEY) {
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'message ai-message error';
-                    errorDiv.textContent = 'Error: Please add your OpenRouter API key in ide.js';
+                    errorDiv.textContent = 'Error: Gemini API key not found';
                     messagesContainer.appendChild(errorDiv);
                     return;
                 }
-
-                const selectedModel = modelSelect.value;
-                const modelName = models.find(m => m.id === selectedModel).name;
 
                 // Add user message to chat
                 const userMessageDiv = document.createElement('div');
@@ -756,19 +745,16 @@ document.addEventListener("DOMContentLoaded", async function () {
                 messagesContainer.scrollTop = messagesContainer.scrollHeight;
 
                 try {
-                    const headers = {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-                        'HTTP-Referer': window.location.origin,
-                        'X-Title': 'Judge0 IDE'
-                    };
-
-                    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                    const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key=${GEMINI_API_KEY}`, {
                         method: 'POST',
-                        headers: headers,
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
                         body: JSON.stringify({
-                            model: selectedModel,
-                            messages: conversationHistory
+                            contents: [{
+                                role: 'user',
+                                parts: [{ text: message }]
+                            }]
                         })
                     });
 
@@ -777,7 +763,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                     }
 
                     const data = await response.json();
-                    const aiResponse = data.choices[0].message.content;
+                    const aiResponse = data.candidates[0].content.parts[0].text;
                     
                     // Add AI response to conversation history
                     conversationHistory.push({ role: 'assistant', content: aiResponse });
@@ -785,7 +771,7 @@ document.addEventListener("DOMContentLoaded", async function () {
                     // Add AI response to chat
                     const aiMessageDiv = document.createElement('div');
                     aiMessageDiv.className = 'message ai-message';
-                    aiMessageDiv.textContent = `${modelName}: ${aiResponse}`;
+                    aiMessageDiv.textContent = `Gemini: ${aiResponse}`;
                     messagesContainer.appendChild(aiMessageDiv);
 
                     // Scroll to bottom
@@ -832,9 +818,23 @@ document.addEventListener("DOMContentLoaded", async function () {
     }
 });
 
-const DEFAULT_SOURCE = "";
-const DEFAULT_STDIN = "";
-const DEFAULT_LANGUAGE_ID = 105; // C++ (GCC 14.1.0)
+const DEFAULT_SOURCE = `# Project Euler - Problem 1
+# Find the sum of all multiples of 3 or 5 below 1000
+
+def solve():
+    # Your code here
+    pass
+
+result = solve()
+print(result)`;
+const DEFAULT_DESCRIPTION = `# Multiples of 3 or 5
+
+## Problem 1
+
+If we list all the natural numbers below 10 that are multiples of 3 or 5, we get 3, 5, 6 and 9. The sum of these multiples is 23.
+
+Find the sum of all the multiples of 3 or 5 below 1000.`;
+const DEFAULT_LANGUAGE_ID = 25; // Python for ML (3.11.2)
 
 function getEditorLanguageMode(languageName) {
     const DEFAULT_EDITOR_LANGUAGE_MODE = "plaintext";
