@@ -1,10 +1,31 @@
+/**
+ * Theme Management System
+ * 
+ * This module manages the IDE's theme system, providing support for light, dark,
+ * system-matched, and reverse-system themes. It handles theme switching, persistence,
+ * and updates all UI elements accordingly including Monaco editor, menus, and buttons.
+ * 
+ * The system supports four themes:
+ * - light: Forces light theme
+ * - dark: Forces dark theme
+ * - system: Matches system theme preference
+ * - reverse-system: Uses opposite of system theme
+ */
 "use strict";
-import query from "./query.js";
-import ls from "./local_storage.js";
+import query from "../utils/QueryParams.js";
+import ls from "../storage/LocalStorage.js";
 
 const theme = {
+    /** List of supported theme names */
     SUPPORTED_THEMES: ["light", "dark", "system", "reverse-system"],
+    /** Default theme when none is set */
     DEFAULT_THEME: "system",
+
+    /**
+     * Sets and applies a theme to the IDE
+     * @param {string} name - The theme name to apply
+     * @param {boolean} save - Whether to persist the theme to local storage
+     */
     set(name, save = true) {
         const resolvedName = theme.SUPPORTED_THEMES.includes(name) ? name : theme.get();
         const resolvedTheme = resolvedName === "system" ? theme.getSystemTheme() : (resolvedName === "reverse-system" ? theme.getReverseSystemTheme() : resolvedName);
@@ -59,9 +80,20 @@ const theme = {
             ls.set("JUDGE0_THEME", resolvedName);
         }
     },
+
+    /**
+     * Retrieves the current theme from local storage
+     * @returns {string} The current theme name or default theme if none is set
+     */
     get() {
         return ls.get("JUDGE0_THEME") || theme.DEFAULT_THEME;
     },
+
+    /**
+     * Toggles between themes in a logical sequence:
+     * - From system theme: switches to opposite of current system theme
+     * - From light/dark: switches to system if it matches, otherwise opposite theme
+     */
     toggle() {
         const current = theme.get();
         if (current === "system") {
@@ -90,9 +122,19 @@ const theme = {
             }
         }
     },
+
+    /**
+     * Detects the system's theme preference
+     * @returns {"light"|"dark"} The system's current theme preference
+     */
     getSystemTheme() {
         return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"
     },
+
+    /**
+     * Returns the opposite of the system theme
+     * @returns {"light"|"dark"} The opposite of the system's current theme
+     */
     getReverseSystemTheme() {
         return theme.getSystemTheme() === "dark" ? "light" : "dark";
     }
@@ -100,6 +142,12 @@ const theme = {
 
 export default theme;
 
+/**
+ * Initialize theme system when DOM is ready:
+ * 1. Wait for Monaco editor to load
+ * 2. Apply theme from URL parameters if specified
+ * 3. Set up theme toggle button click handler
+ */
 document.addEventListener("DOMContentLoaded", function () {
     require(["vs/editor/editor.main"], function () {
         theme.set(query.get("theme"));
@@ -107,6 +155,9 @@ document.addEventListener("DOMContentLoaded", function () {
     document.getElementById("judge0-theme-toggle-btn").addEventListener("click", theme.toggle);
 });
 
+/**
+ * Listen for system theme changes and update if using system/reverse-system theme
+ */
 window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", (e) => {
     ["system", "reverse-system"].forEach(t => {
         if (theme.get() === t) {

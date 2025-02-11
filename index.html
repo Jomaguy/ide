@@ -30,50 +30,40 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.5.0/semantic.min.css" integrity="sha512-KXol4x3sVoO+8ZsWPFI/r5KBVB/ssCGB5tsv2nVOKwLg33wTFP3fmnXa47FdSVIshVTgsYk/1734xSk9aFIa4A==" crossorigin="anonymous" referrerpolicy="no-referrer">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/semantic-ui/2.5.0/semantic.min.js" integrity="sha512-Xo0Jh8MsOn72LGV8kU5LsclG7SUzJsWGhXbWcYs2MAmChkQzwiW/yTQwdJ8w6UA9C6EVG18GHb/TrYpYCjyAQw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 
-    <script type="module" src="js/electron.js"></script>
-    <script type="module" src="js/ide.js"></script>
-    <script type="module" src="js/local_storage.js"></script>
-    <script type="module" src="js/puter.js"></script>
-    <script type="module" src="js/query.js"></script>
-    <script type="module" src="js/style.js"></script>
-    <script type="module" src="js/theme.js"></script>
+    <script type="module" src="core/environment/ElectronDetector.js"></script>
+    <script type="module" src="core/environment/PuterIntegration.js"></script>
+    <script type="module" src="components/app/ide.js"></script>
+    <script type="module" src="core/storage/LocalStorage.js"></script>
+    <script type="module" src="core/utils/QueryParams.js"></script>
+    <script type="module" src="core/ui/StyleManager.js"></script>
+    <script type="module" src="core/theme/ThemeManager.js"></script>
 
     <link type="text/css" rel="stylesheet" href="css/ide.css">
     <link type="text/css" rel="stylesheet" href="css/site.css">
 
-    <title>Judge0 IDE</title>
-    <meta name="title" content="Judge0 IDE">
-    <meta name="description" content="Free and open-source online code editor and compiler">
-    <meta name="author" content="Judge0 d.o.o.">
+    <title>Euler.ai</title>
+    <meta name="title" content="Euler.ai">
+    <meta name="description" content="AI-powered code editor and compiler">
+    <meta name="author" content="Euler.ai">
     <meta name="keywords" content="online editor, online code editor, online ide, online compiler, online interpreter, run code online, learn programming online,
     online debugger, programming in browser, online code runner, online code execution, debug online, debug C code online, debug C++ code online,
     programming online, snippet, snippets, code snippet, code snippets, pastebin, execute code, programming in browser, run c online, run C++ online,
     run java online, run python online, run ruby online, run c# online, run rust online, run pascal online, run basic online">
 
-    <meta property="og:url" content="https://ide.judge0.com">
+    <meta property="og:url" content="https://euler.ai">
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Judge0 IDE">
-    <meta property="og:image" content="https://raw.githubusercontent.com/judge0/ide/refs/heads/master/.github/wallpaper.png">
-    <meta property="og:image:alt" content="Judge0 IDE">
-    <meta property="og:description" content="Free and open-source online code editor and compiler">
-    <meta property="og:site_name" content="Judge0 IDE">
+    <meta property="og:title" content="Euler.ai">
+    <meta property="og:image" content="">
+    <meta property="og:image:alt" content="Euler.ai">
+    <meta property="og:description" content="AI-powered code editor and compiler">
+    <meta property="og:site_name" content="Euler.ai">
     <meta property="og:locale" content="en_US">
 
-    <meta property="twitter:url" content="https://ide.judge0.com">
+    <meta property="twitter:url" content="https://euler.ai">
     <meta property="twitter:card" content="summary_large_image">
-    <meta property="twitter:title" content="Judge0 IDE">
-    <meta property="twitter:image" content="https://raw.githubusercontent.com/judge0/ide/refs/heads/master/.github/wallpaper.png">
-    <meta property="twitter:description" content="Free and open-source online code editor and compiler">
-
-    <link rel="shortcut icon" href="/favicons/favicon.ico">
-
-    <link rel="icon" type="image/svg+xml" href="/favicons/favicon.svg">
-    <link rel="icon" type="image/png" sizes="96x96" href="/favicons/favicon-96x96.png">
-
-    <link rel="apple-touch-icon" sizes="180x180" href="/favicons/favicon-180x180.png">
-    <meta name="apple-mobile-web-app-title" content="Judge0 IDE">
-
-    <link rel="manifest" href="/manifest.json">
+    <meta property="twitter:title" content="Euler.ai">
+    <meta property="twitter:image" content="">
+    <meta property="twitter:description" content="AI-powered code editor and compiler">
 
     <meta name="msapplication-TileColor" content="#ffffff">
     <meta name="theme-color" content="#ffffff">
@@ -81,6 +71,9 @@
 
 <body>
     <div id="judge0-site-navigation" class="ui top fixed borderless menu">
+        <div class="item">
+            <span style="font-weight: bold; font-size: 1.2em;">Euler.ai</span>
+        </div>
         <div class="item">
             <div class="ui input">
                 <select id="select-language" class="ui search selection dropdown"></select>
